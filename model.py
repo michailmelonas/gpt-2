@@ -48,8 +48,8 @@ class AttentionHead(nn.Module):
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         _, t, _ = x.shape  # t <= block_size
-        q = self.query(x)  # (b, t, d_model) @ (d_model, head_size) -> (b, t, head_size)
-        k = self.key(x)  # (b, t, d_model) @ (d_model, head_size) -> (b, t, head_size)
+        q = self._query(x)  # (b, t, d_model) @ (d_model, head_size) -> (b, t, head_size)
+        k = self._key(x)  # (b, t, d_model) @ (d_model, head_size) -> (b, t, head_size)
 
         wei = q @ k.transpose(-2, -1) / (self._head_size ** 0.5)  # (b, t, head_size) @ (b, head_size, t) -> (b, t, t)
         wei = wei.masked_fill(self._tril[:t, :t] == 0, float("-inf"))
@@ -113,6 +113,8 @@ class Block(nn.Module):
 class GPT2(nn.Module):
     def __init__(self, dims: ModelDimensions):
         super().__init__()
+        self._dims = dims
+
         self._token_embedding_table = nn.Embedding(dims.vocab_size, dims.d_model)
         self._position_embedding_table = nn.Embedding(dims.block_size, dims.d_model)
 
@@ -135,3 +137,14 @@ class GPT2(nn.Module):
 
         logits = self._lm(out) if not inference else self._lm(out[:, [-1], :])
         return logits
+
+    def generate(self, idx: torch.Tensor, new_tokens: int):
+        for _ in range(new_tokens):
+            idx_context = idx[:, -self._dims.block_size:]
+            logits = self(idx_context, inference=True)[:, -1, :]
+            probs = F.softmax(logits, dim=-1)
+
+            # sample next token
+            idx_next = torch.multinomial(probs, num_samples=1)
+            idx = torch.cat((idx, idx_next), dim=1)
+        return idx
