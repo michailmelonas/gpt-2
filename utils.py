@@ -19,13 +19,3 @@ def get_batch(data: torch.Tensor, batch_size: int, block_size: int, device: str)
     y = torch.stack([data[i + 1: i + block_size + 1] for i in ix]).to(device)
     return x, y
 
-
-@torch.no_grad()
-def estimate_loss(model: GPT2, eval_iters: int, data: torch.Tensor, batch_size: int, block_size: int) -> float:
-    model.eval()
-    losses = torch.zeros(eval_iters)
-    for _ in range(eval_iters):
-        x, y = get_batch(data, batch_size, block_size)
-        logits = model(x)
-        # todo: compute loss
-    return loss
